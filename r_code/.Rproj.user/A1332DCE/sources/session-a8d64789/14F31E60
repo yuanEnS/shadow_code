@@ -1,0 +1,24 @@
+{
+    "id": "14F31E60",
+    "path": "~/Documents/Github_yuanEnS/shadow_code/r_code/2_Simulations/Bound/run_bound_repeat_N8000.sh",
+    "project_path": "2_Simulations/Bound/run_bound_repeat_N8000.sh",
+    "type": "sh",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1713353073210.0,
+    "source_on_save": false,
+    "relative_order": 3,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1680866354,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1680866354,
+    "read_only": false,
+    "read_only_alternatives": []
+}

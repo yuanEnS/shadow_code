@@ -1,0 +1,26 @@
+{
+    "id": "66B78CC2",
+    "path": "~/Documents/Github_yuanEnS/shadow_code/r_code/2_Simulations_with_SACE/Repeat_cyc1000_N2000_sace.R",
+    "project_path": "2_Simulations_with_SACE/Repeat_cyc1000_N2000_sace.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1713353551533.0,
+    "source_on_save": false,
+    "relative_order": 9,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "455,6",
+        "scrollLine": "463"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1706703801,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1706703801,
+    "read_only": false,
+    "read_only_alternatives": []
+}

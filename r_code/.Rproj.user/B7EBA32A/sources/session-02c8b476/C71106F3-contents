@@ -1,0 +1,117 @@
+## simulation setting
+
+
+library(MASS)
+# 1. generating data ------------------------------------------------------
+set.seed(20220901)
+N <- 2000
+
+## covarite variables and random assignment
+p <- 1/2
+C1 <-  rbinom(N,1,p)
+C1 <- ifelse(C1>0,1,-1)
+C2 <- rnorm(N)
+C <- cbind(rep(1,N),C1,C2)
+
+u <- c(1/2,1/2)
+pr_A1 <- exp(C[,2:3]%*%u)/(exp(c(C[,2:3]%*%u))+1)
+A <- c()
+for(i in 1:N){
+  A[i] <- rbinom(1,1,pr_A1[i])
+} 
+Z <- rbinom(N,1,0.5)
+
+
+## principal strata G
+delta2 <- 0
+
+beta1 <- c(4,delta2,delta2,2)/2
+beta2 <- c(0,-3*delta2,delta2,2)/2
+pr_G_ll <- c()
+pr_G_ld <- c()
+pr_G_dd <- c()
+G <- c()
+for(i in 1:N){
+  expit_1 <- 1/(1+exp(-c(C[i,],A[i])%*%beta1))
+  expit_2 <- 1/(1+exp(-c(C[i,],A[i])%*%beta2))
+  
+  pr_G_ll[i] <- expit_1*expit_2
+  pr_G_ld[i] <- expit_1*(1-expit_2)
+  pr_G_dd[i] <- 1-pr_G_ll[i]-pr_G_ld[i]
+  
+  G[i] <- sample(0:2,1,replace = TRUE,prob = c(pr_G_ll[i],pr_G_ld[i],pr_G_dd[i]))
+}
+
+## survival status 
+S <- rep(0,N)
+for(i in 1:N){
+  if(G[i]==0 || (G[i]==1 && Z[i]==1)){
+    S[i] <- 1
+  }
+}
+
+## potential outcomes
+Y_1_ll <- c()
+Y_0_ll <- c()
+Y_1_ld <- c()
+c_multi_u <- C[,2:3]%*%u
+for(i in 1:N){
+  p1 <- 1/(1+exp(-(0.5+c_multi_u[i]))) ## expectation: potential outcome Y(1) given G = LL, S = 1, C
+  p2 <- 1/(1+exp(-(-0.5+c_multi_u[i]))) ## expectation: potential outcome Y(0) given G = LL, S = 1, C
+  p3 <- 1/(1+exp(-(7+c_multi_u[i]))) ## expectation: potential outcome Y(1) given G = LD, S = 1, C
+  Y_1_ll[i] <- rbinom(1,1,p1)
+  Y_0_ll[i] <- rbinom(1,1,p2)
+  Y_1_ld[i] <- rbinom(1,1,p3)
+}
+
+
+Y <- c()
+## observational outcome Y
+for(i in 1:N){
+  if(G[i]==0 && Z[i]==1){
+    Y[i] <- Y_1_ll[i]
+  }
+  else if(G[i]==0 && Z[i]==0){
+    Y[i] <- Y_0_ll[i]
+  }
+  else if(G[i]==1 && Z[i]==1){
+    Y[i] <- Y_1_ld[i]
+  }else{
+    Y[i] <- -1  ## -1 to indicate survival censor
+  }
+}
+
+## missing indicator R
+delta3 = 0
+R <- c()
+alpha <- c(4,-3*delta3,2*delta3,2,-1)/2
+alpha_multi_acy <- cbind(C,A,Y)
+for(i in 1:N){
+  pr <- 1/(1+exp(-alpha_multi_acy[i]))
+  R[i] <- rbinom(1,1,pr)  
+}
+
+## check the data generation
+dat <- cbind(C,A,Z,G,S,Y_1_ll,Y_0_ll,Y_1_ld,Y,R)
+dat <- data.frame(dat)
+class(dat)
+dim(dat) 
+names(dat)<- c('bias','C1','C2','A','Z','G','S','Y_1_ll','Y_0_ll','Y_1_ld','Y','R') 
+# dat <- dat[G==0,]
+# dat <- dat[Y_0_ll==1,]
+# dat <- dat[Z==0,]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

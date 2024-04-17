@@ -1,0 +1,26 @@
+{
+    "id": "88FA586D",
+    "path": "~/Documents/Gitlab_ruc/shadow/r_code/5_analyses/Analyze_results_for_sace.R",
+    "project_path": null,
+    "type": "r_source",
+    "hash": "714063958",
+    "contents": "",
+    "dirty": false,
+    "created": 1709629094702.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "37,0",
+        "scrollLine": "17"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1709629105,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1709629105330,
+    "read_only": false,
+    "read_only_alternatives": []
+}

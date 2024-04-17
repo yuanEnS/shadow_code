@@ -1,0 +1,26 @@
+{
+    "id": "355C7F14",
+    "path": "~/Documents/Gitlab_ruc/shadow/r_code/2_Simulations_naive/Repeat_cyc1000_N5000_sace.R",
+    "project_path": "Repeat_cyc1000_N5000_sace.R",
+    "type": "r_source",
+    "hash": "3066395291",
+    "contents": "",
+    "dirty": false,
+    "created": 1709628806249.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "486,16",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1709628825,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1709628825942,
+    "read_only": false,
+    "read_only_alternatives": []
+}
