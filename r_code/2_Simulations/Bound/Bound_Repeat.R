@@ -67,11 +67,15 @@ Bound_try <- function(seeds){
           para_pos_A <- 0.7
           
           
-          
           ## covariates setting
           # C <- cbind(rep(1, N), rnorm(N, mean = para_mean_C, sd = para_sd_C)) 
-          C <- cbind(rep(1, N),rbern(N,para_pos_C))
-          A <- rbern(N,para_pos_A)
+          # C <- cbind(rep(1, N),rbern(N,para_pos_C))
+          C1 <- rnorm(N, mean = para_mean_C, sd = para_sd_C)
+          
+          C <- cbind(rep(1, N), C1)
+          # A <- rbern(N,para_pos_A)
+          A <- rnorm(N, mean = para_mean_A, sd = para_sd_A)
+          
           Z <- rbinom(N, 1, para_mean_Z)
           ## princial strata G
           para_beta1
@@ -161,6 +165,7 @@ Bound_try <- function(seeds){
           R <- c()
           print("paramters used in R, alpha = ")
           print(para_alpha)
+          alpha_multi_cay <- cbind(C, A, Y) %*% para_alpha
           for (i in 1:N) {
             R[i] <- rbinom(1, 1, expit(alpha_multi_cay[i]))
           }
@@ -443,6 +448,9 @@ Bound_try <- function(seeds){
         
         
         dat<- data_generate(seeds)
+        
+        dat$C1 <- ifelse(dat$C1>0,1,0)
+        dat$A <- ifelse(dat$A > 0,1,0)
         dat_obs <- select(dat, c('bias', 'C1', 'A', 'Z', 'S', 'Y', 'R'))
         C <- dat_obs[,1:2]
         A <- dat_obs[,3]
@@ -572,13 +580,17 @@ Bound_try <- function(seeds){
         
         int_S_Z <- function(s,z,dat){
           ## compute \int_{A,C} Pr{S = s | Z = z, A, C}f(A,C) d\mu(A)d\mu(C)
-          integration <- 0
-          for(a in 0:1){
-            for(c in 0:1){
-              integration = integration + Pr_S_ACZ(s,a,c,z,dat)*f(a,c,dat)
-            }
-          }
-          return(integration)
+          # integration <- 0
+          # for(a in 0:1){
+          #   for(c in 0:1){
+          #     integration = integration + Pr_S_ACZ(s,a,c,z,dat)*f(a,c,dat)
+          #   }
+          # }
+          # return(integration)
+          dat_cur <- dat[dat$Z ==0,]
+          dat_final <- dat_cur[dat_cur$S==1,]
+          res <- dim(dat_final)[1]/dim(dat_cur)[1]
+          return(res)
         }
         
         int_Y_SZR <- function(y,s,z,r,dat){
@@ -604,43 +616,121 @@ Bound_try <- function(seeds){
           return(res)
         }
         ##### Compute values
-        gamma_proportion <- int_S_Z(1,0,dat)/(1 - int_S_Z(0,1,dat))
-        
+        ##### Compute values
+        # gamma_proportion <- int_S_Z(1,0,dat)/(1 - int_S_Z(0,1,dat))
+        gamma_proportion <- function(a,c,dat){
+          res <- Pr_S_ACZ(1,a,c,0,dat)/Pr_S_ACZ(1,a,c,1,dat)
+        }
+
+        ##### change code start
         ## a_u
         int_a_u <- 0
         for(a in 0:1){
           for(c in 0:1){
-            int_a_u = int_a_u + (Pr_Y_SACZR(1,1,a,c,1,1,dat)*Pr_R_SACZ(1,1,a,c,1,dat)+Pr_R_SACZ(0,1,a,c,1,dat))*f_AC_S1(a,c,dat) 
-          }
+              pi_x_u <- (Pr_Y_SACZR(1,1,a,c,1,1,dat)*Pr_R_SACZ(1,1,a,c,1,dat)+Pr_R_SACZ(0,1,a,c,1,dat))
+              x_gamma <- gamma_proportion(a,c,dat)
+              x_a_u <- pi_x_u/x_gamma 
+              int_a_u = int_a_u + min(1, x_a_u)*f_AC_LL(a,c,dat)
+            }
         }
-        int_a_u <- min(1/gamma_proportion*int_a_u,1)
+        
         
         ## a_l
         int_a_l <- 0
         for(a in 0:1){
           for(c in 0:1){
-            int_a_l = int_a_l + (Pr_Y_SACZR(1,1,a,c,1,1,dat)*Pr_R_SACZ(1,1,a,c,1,dat)*f_AC_S1(a,c,dat))
+              x_gamma <- gamma_proportion(a,c,dat)
+              pi_x_l <- Pr_Y_SACZR(1,1,a,c,1,1,dat)*Pr_R_SACZ(1,1,a,c,1,dat)            
+              x_a_l <- pi_x_l/x_gamma - (1 - x_gamma)/x_gamma
+              int_a_l = int_a_l + max(0,x_a_l)*f_AC_LL(a,c,dat)
           }
         }
-        int_a_l <- 1/gamma_proportion * int_a_l - (1 - gamma_proportion)/gamma_proportion
+        
+        int_a_l <- max(0,int_a_l)
+        
+        
         
         #b_u
         int_b_u <- 0
         for(a in 0:1){
           for(c in 0:1){
-            int_b_u <- int_b_u + (Pr_Y_SACZR(1,1,a,c,0,1,dat)*Pr_R_SACZ(1,1,a,c,0,dat) + Pr_R_SACZ(0,1,a,c,0,dat))*f_AC_LL(a,c,dat)
-          }
+              int_b_u <- int_b_u + (Pr_Y_SACZR(1,1,a,c,0,1,dat)*Pr_R_SACZ(1,1,a,c,0,dat) + Pr_R_SACZ(0,1,a,c,0,dat))*f_AC_LL(a,c,dat)
+            }
         }
         
         int_b_l <- 0
         for(a in 0:1){
           for(c in 0:1){
-            int_b_l <- int_b_l + (Pr_Y_SACZR(1,1,a,c,0,1,dat)*Pr_R_SACZ(1,1,a,c,0,dat))*f_AC_LL(a,c,dat)
-          }
+              int_b_l <- int_b_l + (Pr_Y_SACZR(1,1,a,c,0,1,dat)*Pr_R_SACZ(1,1,a,c,0,dat))*f_AC_LL(a,c,dat)
+            }
         }
+        print(paste("CE falls in interval: [",int_a_l - int_b_u,int_a_u - int_b_l,"]"))
+        
+        ##### change code end
+        
+        
+        ##### bound under randomized trial: start
+        
+        # delta_z: pr(R(z) = 1 | S(z) = 1 ) = pr(R = 1 | S = 1, Z = z)
+        delta_z <- function(z,dat){
+          dat_cur <- dat[dat$S == 1,]
+          dat_cur <- dat_cur[dat_cur$Z == z,]
+          dat_final <- dat_cur[dat_cur$R ==1, ]
+          res <- dim(dat_final)[1]/dim(dat_cur)[1]
+          return(res)
+        }
+        delta_1 <- delta_z(1,dat)
+        
+        delta_0 <- delta_z(0,dat)
+        
+        # Pr(S(0) = 1 | S(1) = 1) = Pr(S(0) = 1, S(1) = 1)/Pr(S(1) = 1) = Pr(S(0) = 1)/Pr(S(1) = 1) 
+        # =  Pr(S = 1 | Z = 0)/Pr(S = 1 | Z = 1) under randomized trial
+        gamma_com <- function(dat){
+          dat_z_0 <- dat[dat$Z==0,]
+          dat_cur_0 <- dat_z_0[dat_z_0$S==1,]
+          
+          dat_z_1 <- dat[dat$Z==1,]
+          dat_cur_1 <- dat_z_1[dat_z_1$S==1,]
+          numerator <- dim(dat_cur_0)[1]/dim(dat_z_0)[1]
+          denome <- dim(dat_cur_1)[1]/dim(dat_z_1)[1]
+          res <- numerator / denome
+          return(res)
+        }
+        
+        gamma <- gamma_com(dat)
+        
+        # \xi_{z1} = pr{Y(z) = 1| S(z) = 1, R(z) = 1}
+        xi_z_1 <- function(z,dat){
+          dat_cur <- dat[dat$R == 1,]
+          dat_cur <- dat_cur[dat_cur$Z == z,]
+          dat_cur <- dat_cur[dat_cur$S==1,]
+          dat_final <- dat_cur[dat_cur$Y==1,]
+          res <- dim(dat_final)[1]/dim(dat_cur)[1]
+          return(res)
+        }
+        xi_01 <- xi_z_1(0,dat)
+        xi_11 <- xi_z_1(1,dat)
+        
+        pi_1_u <- delta_1 * xi_11 + 1 - delta_1
+        pi_1_l <- delta_1 * xi_11 
+        
+        theta_111_l <- max(0, pi_1_l/gamma - (1 - gamma)/gamma)
+        theta_111_u <- min(1,pi_1_u/gamma)
+        
+        theta_011_u <- delta_0 * xi_01 + 1 - delta_0
+        
+        
+        theta_011_l <- delta_0 * xi_01 
+        
+        print(paste("CE falls in interval: [",theta_111_l - theta_011_u,theta_111_u - theta_011_l,"]"))
+        ##### bound under randomized trial: end
+        
+        
         coverage <- 0
         lower_bound <- int_a_l - int_b_u
         upper_bound <- int_a_u - int_b_l
+        lower_bound_random <- theta_111_l - theta_011_u
+        upper_bound_random <- theta_111_u - theta_011_l
         if(true_causal>=lower_bound & true_causal<=upper_bound){
           coverage <- 1
         }
@@ -649,7 +739,7 @@ Bound_try <- function(seeds){
         
         
         ##### Compute Causal Effects
-        return(c(lower_bound,upper_bound,len_interval,CE))
+        return(c(lower_bound,upper_bound,lower_bound_random,upper_bound_random,len_interval,CE))
         
       }
       res <- Bound(seeds)
@@ -674,6 +764,8 @@ res <- parLapply(cl,1:(cyc+error_trial),Bound_try)
 print("res over")
 lower_bounds <- NULL
 upper_bounds <- NULL
+lower_bounds_random <- NULL
+upper_bounds_random <- NULL
 len_intervals <- NULL
 CEs <- NULL
 for(i in 1:(cyc+error_trial)){
@@ -681,8 +773,10 @@ for(i in 1:(cyc+error_trial)){
     expr = {
       lower_bounds <- c(lower_bounds,res[[i]][1])
       upper_bounds <- c(upper_bounds,res[[i]][2])
-      len_intervals <- c(len_intervals,res[[i]][3])
-      CEs <- c(CEs,res[[i]][4])
+      lower_bounds_random <- c(lower_bounds_random,res[[i]][3])
+      upper_bounds_random <- c(upper_bounds_random,res[[i]][4])
+      len_intervals <- c(len_intervals,res[[i]][5])
+      CEs <- c(CEs,res[[i]][6])
       message(paste("Successfully added cyc: ",i))
     },
     error = function(e){
@@ -703,7 +797,7 @@ print("results over")
 time_end <- Sys.time()
 time <- time_end - time_start
 print(time)
-save.image(paste("Repeat_bound_ori_gene",cyc,"_N",8000,".RData",sep = ''))
+save.image(paste("Repeat_bound_ori_gene_More",cyc,"_N",8000,".RData",sep = ''))
 print("saved successfully")
 
 

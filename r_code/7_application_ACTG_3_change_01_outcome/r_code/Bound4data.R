@@ -7,39 +7,37 @@ library(speff2trial)
 
 # 2. Data processing ------------------------------------------------------
 data("ACTG175")
-source("../../1_functions/0_basic_functions.R")
-source("../../1_functions/1_alphaPred.R")
-source("../../1_functions/2_betaPred.R")
-source("../../1_functions/3_1_gammaPred_for_application.R")
-source("../../1_functions/4_etaPred_for_application.R")
-source("../../1_functions/5_application.R")
+source("../1_functions/0_basic_functions.R")
+source("../1_functions/1_alphaPred.R")
+source("../1_functions/2_betaPred.R")
+source("../1_functions/3_1_gammaPred_for_application.R")
+source("../1_functions/4_etaPred_for_application.R")
+source("../1_functions/5_application.R")
 
 
-source("./functions4data/MLEs.R")
+source("./r_code/functions4data/MLEs.R")
 
-covariates <- c("wtkg","gender","karnof","str2","symptom")
-case_trial <- 11
+covariates <- c("wtkg")
 
-
-C <- rep(1,nrow(ACTG175))
-for(c in covariates){
-  print(c)
-  if(c == 'age' | c == 'wtkg' | c == 'karnof'){
-    C <- cbind(C,scale(select(ACTG175,c)))
-  }
-  else{
-    C <- cbind(C,select(ACTG175,c))
-  }
-}
+median_wtkg <- median(select(ACTG175,'wtkg')$wtkg)
+C <- ifelse((select(ACTG175,'wtkg'))$wtkg>median_wtkg,1,0)
+# C <- cbind(C,ifelse((select(ACTG175,'karnof'))$karnof>95,1,0))
 C <- as.data.frame(C)
+colnames(C) <- covariates
+# for(c in covariates){
+#   print(c)
+#   if(c == 'age' | c == 'wtkg' | c == 'karnof'){
+#     C <- cbind(C,scale(select(ACTG175,c)))
+#   }
+#   else{
+#     C <- cbind(C,select(ACTG175,c))
+#   }
+# }
+median_A <- median(ACTG175$cd40)
+A <- ifelse(ACTG175$cd40 > median_A,1,0)
 
-colnames(C)[1] <- "bias"
-A <- ACTG175$cd40
-A <- scale(A)
 
-
-
-Z <- (ACTG175$arms == 1 | ACTG175$arms == 2)
+Z <- (ACTG175$arms > 0)
 S <- (ACTG175$cens & (ACTG175$days<7*96))
 S[S] <- 1
 # S <- ACTG175$offtrt==0
@@ -64,162 +62,155 @@ Y[is.na(Y)] <- -1
 dat <- cbind(C,A,Z,S,Y,R)
 head(dat)
 
+# Compute Bound -----------------------------------------------------------
 
-# 3. Model Building & Parameter Estimation-------------------------------------------------------
+# 2, Compute Some Terms ---------------------------------------------------
+##### Some generic functions
+f <- function(a,wtkg,dat){
+  ## compute the empirical probability of A and C
+  dat_cur <- dat[dat$A == a,]
+  dat_cur <- dat_cur[dat_cur$wtkg == wtkg,]
+  res <- dim(dat_cur)[1]/dim(dat)[1]
+  if(is.na(res)){
+    res <- 0
+    print("nan f")
+  }
+  return(res)
+}
+Pr_S_ACZ <- function(s,a,wtkg,z,dat){
+  ## compute the empirical probability of Pr(S = s | A = a, C = c, Z = z)
+  dat_cur <- dat[(dat$A == a) &  (dat$Z == z),]
+  dat_cur <- dat_cur[dat_cur$wtkg == wtkg,]
+  dat_cur_S <- dat_cur[dat_cur$S == s, ]
+  res <- dim(dat_cur_S)[1]/dim(dat_cur)[1]
+  if(is.na(res)){
+    res <- 0
+    print("NaN Pr_S_ACZ")
+  }
+  return(res)
+}
+Pr_Y_SACZR <- function(y,s,a,wtkg,z,r,dat){
+  ## compute the empirical probability of Pr(Y = y | S = s, A = a,C = c,Z = z, R = r)
+  dat_cur <- dat[(dat$S == s) & (dat$A == a) & (dat$Z == z) & (dat$R == r),]
+  dat_cur <- dat_cur[dat_cur$wtkg == wtkg,]
+  dat_cur_Y <- dat_cur[dat_cur$Y == y,]
+  res <- dim(dat_cur_Y)[1]/dim(dat_cur)[1]
+  if(is.na(res)){
+    res <- 0
+    print("NaN Pr_Y_SACZR")
+  }
+  return(res)
+}
 
-dat_obs <- dat
-dim_status <- c(ncol(C),1,1,1,1,1)
+Pr_R_SACZ <- function(r,s,a,wtkg,z,dat){
+  dat_cur <- dat[(dat$S == s) & (dat$A == a) & (dat$Z == z),]
+  dat_cur <- dat_cur[dat_cur$wtkg == wtkg,]
+  dat_cur_R <- dat_cur[dat_cur$R == r,]
+  res <- dim(dat_cur_R)[1]/dim(dat_cur)[1]
+  if(is.na(res)){
+    res <- 0
+    print("NaN: Pr_R_SACZ")
+  }
+  return(res)
+}
 
-### pr(R = 1 | S = 1 ,A, C, Y; alpha)
-### pr(S = 1 | Z = 1, A ,C; beta1)
-### pr(S = 1 | Z = 0, A ,C; beta01)
-### E[Y | Z = 1, G = g, C ] = \mu_g(C; \gamma_g)
-### E[Y | Z = 0, S = 1, C] = m(C; \eta)
-## initial values
-set.seed(20230701)
+int_S_Z <- function(s,z,dat){
+  ## compute \int_{A,C} Pr{S = s | Z = z, A, C}f(A,C) d\mu(A)d\mu(C)
+  integration <- 0
+  for(a in 0:1){
+    for(wtkg in 0:1){
+        integration = integration + Pr_S_ACZ(s,a,wtkg,z,dat)*f(a,wtkg,dat)
+    }
+  }
+  return(integration)
+}
 
-ini_val_alpha <- runif( (ncol(C)+2))
-ini_val_beta1 <- runif( ncol(C) + 1)
-ini_val_beta01 <- runif( ncol(C) + 1)
-ini_val_gamma_LL <- runif(ncol(C))
-ini_val_gamma_LD <- runif(ncol(C))
-ini_val_eta <- runif(ncol(C))
+int_Y_SZR <- function(y,s,z,r,dat){
+  ## compute \int_{A,C} Pr(Y = y | S = s, Z = z, R =r ,A, C)f(A,C)d\mu(A)d\mu(C)
+  integration <- 0
+  for(a in 0:1){
+    for(wtkg in 0:1){
+        integration = integration + Pr_Y_SACZR(y,s,a,wtkg,z,r,dat)*f(a,wtkg,dat)
+      }
+  }
+  return(integration)
+}
 
+f_AC_LL <- function(a,wtkg,dat){
+  ## compute f(A,C | G = LL)
+  res <- Pr_S_ACZ(1,a,wtkg,0,dat)*f(a,wtkg,dat)/int_S_Z(1,0,dat)
+  return(res)
+}
 
-hat_alpha <-
-  alphaPred(ini_val_alpha = ini_val_alpha,
-            C,
-            A,
-            Z,
-            S,
-            Y,
-            R,
-            dim_status = dim_status)$coefficients
-
-beta_estimate <-
-  optim(
-    c(ini_val_beta1, ini_val_beta01),
-    Neg_MLE,
-    data = select(dat_obs, c('bias',covariates,'A','Z','S')),
-    method = "BFGS"
-  )$par
-hat_beta1 <- beta_estimate[1:(ncol(C) + 1)]
-hat_beta01 <- beta_estimate[(ncol(C) + 2):length(beta_estimate)]
-rm(list = c("beta_estimate"))
-
-
-hat_gamma_BB<- gammaPred_BB(ini_val_gamma_LL,
-                            ini_val_gamma_LD,
-                            C,
-                            A,
-                            Z,
-                            S,
-                            Y,
-                            R,
-                            dim_status,
-                            hat_alpha,
-                            hat_beta1,
-                            hat_beta01)
-
-hat_gamma <- hat_gamma_BB$par
-hat_gamma_LL <- hat_gamma[1:(length(hat_gamma)/2)]
-hat_gamma_LD <- hat_gamma[(length(hat_gamma)/2+1):length(hat_gamma)]
-
-### singular:: to check the gradients. rank(A*A^T) = rank(A), A is gradients of m_sum
-hat_eta <- etaPred(
-  ini_val_eta = ini_val_eta,
-  C,
-  A,
-  Z,
-  S,
-  Y,
-  R,
-  dim_status = dim_status,
-  hat_alpha = hat_alpha,
-  hat_beta1 = hat_beta1,
-  hat_beta01 = hat_beta01
-)$coefficients
-
-
-
-# f(G = LL | A, C)
-
-theta1_value <-  expit(as.matrix(cbind(C, A)) %*% hat_beta1)
-theta01_value <- expit(as.matrix(cbind(C, A)) %*% hat_beta01)
-fLLAC <- theta1_value * theta01_value
-
-# Pr(G = LL | A,C)
-ELLAC <- mean(fLLAC)
-ELLLDAC <- mean(theta1_value)
-
-
-#P_sz(A,C) = Pr(S = 1 \ Z = z, A, C) = expit((A,C)\xi_1z)  MLE method to estimate
-  set.seed(20240201)
-  ini_val_xi_y_1111 <- runif(ncol(C) + 1)
-  ini_val_xi_y_1101 <- runif(ncol(C) + 1)
-  xi_y_1111 <- 
-    optim(
-      ini_val_xi_y_1111,
-      Neg_MLE_P_Y1111,
-      data = dat,
-      method = "BFGS"
-    )$par
-  xi_y_1101 <- 
-    optim(
-      ini_val_xi_y_1101,
-      Neg_MLE_P_Y1101,
-      data = dat,
-      method = "BFGS"
-    )$par
-  
-# P_R111 = Pr(R = 1 | S = 1, Z = 1, A, C) = expit((A,C) xi_r_111)
-  ini_val_xi_r_111 <- runif(ncol(C) + 1)
-  ini_val_xi_r_110 <- runif(ncol(C) + 1)
-  xi_r_111 <- 
-    optim(
-      ini_val_xi_r_111,
-      Neg_MLR_R_111,
-      data = dat,
-      method = "BFGS"
-    )$par
-  xi_r_110 <- 
-    optim(
-      ini_val_xi_r_110,
-      Neg_MLR_R_111,
-      data = dat,
-      method = "BFGS"
-    )$par
-  
+f_AC_S1 <- function(a,wtkg,dat){
+  ## compute f(A,C | S(1) = 1)
+  res <- Pr_S_ACZ(1,a,wtkg,1,dat)*f(a,wtkg,dat)/int_S_Z(1,1,dat)
+  return(res)
+}
+##### Compute values
+# gamma_proportion <- int_S_Z(1,0,dat)/(1 - int_S_Z(0,1,dat))
+gamma_proportion <- function(a,wtkg,dat){
+  res <- Pr_S_ACZ(1,a,wtkg,0,dat)/Pr_S_ACZ(1,a,wtkg,1,dat)
+  if(is.na(res)){
+    res <- 0
+    print("gamma proportion: nan")
+  }
+  if(is.infinite(res)){
+    res <- 0
+    print("Inf: gamma proportion")
+  }
+  return(res)
+}
+for(a in 0:1){
+  for(wtkg in 0:1){
+      print(gamma_proportion(a,wtkg,dat))
+    }
+}
+for(s in 0:1){
+  for(z in 0:1){
+    print(int_S_Z(s,z,dat))
+  }
+}
+## a_u
+int_a_u <- 0
+for(a in 0:1){
+  for(wtkg in 0:1){
+      pi_x_u <- (Pr_Y_SACZR(1,1,a,wtkg,1,1,dat)*Pr_R_SACZ(1,1,a,wtkg,1,dat)+Pr_R_SACZ(0,1,a,wtkg,1,dat))
+      x_gamma <- gamma_proportion(a,wtkg,dat)
+      x_a_u <- pi_x_u/x_gamma 
+      int_a_u = int_a_u + min(1, x_a_u)*f_AC_LL(a,wtkg,dat)
+  }
+}
 
 
-# 4. Compute Bound --------------------------------------------------------
+## a_l
+int_a_l <- 0
+for(a in 0:1){
+  for(wtkg in 0:1){
+      x_gamma <- gamma_proportion(a,wtkg,dat)
+      pi_x_l <- Pr_Y_SACZR(1,1,a,wtkg,1,1,dat)*Pr_R_SACZ(1,1,a,wtkg,1,dat)            
+      x_a_l <- pi_x_l/x_gamma - (1 - x_gamma)/x_gamma
+      int_a_l = int_a_l + max(0,x_a_l)*f_AC_LL(a,wtkg,dat)
+  }
+}
 
-# Pr(G = LL)
-  Pr_G_LL <- ELLAC
-# Pr(G = LL) + Pr(G = LD)
-  Pr_G_LLLD <- ELLLDAC
-  gamma <- Pr_G_LL/Pr_G_LLLD
-  
-# \pi_1
-  pi_1_U <- mean(
-                (expit(as.matrix(cbind(C, A)) %*% xi_y_1111) * expit(as.matrix(cbind(C, A)) %*% xi_r_111)  
-              + (1 -  expit(as.matrix(cbind(C, A)) %*%  xi_r_111))) * theta1_value
-          )/ELLLDAC
-  pi_1_L <- mean(
-    (expit(as.matrix(cbind(C, A)) %*% xi_y_1111) * expit(as.matrix(cbind(C, A)) %*% xi_r_111)  
-     ) * theta1_value
-  )/ELLLDAC
-  
-# \xi
-  xi_U <- mean(
-    (expit(as.matrix(cbind(C, A)) %*% xi_y_1101) * expit(as.matrix(cbind(C, A)) %*% xi_r_110)  
-     +  (1 - expit(as.matrix(cbind(C, A)) %*% xi_r_110))) * fLLAC
-  )/ELLAC
-  xi_L <- mean(
-    (expit(as.matrix(cbind(C, A)) %*% xi_y_1101) * expit(as.matrix(cbind(C, A)) %*% xi_r_110)  
-     ) * fLLAC
-  )/ELLAC
-  
-  
-min_bound <- max(0,(pi_1_L - 1 + gamma)/gamma) - xi_U
-max_bound <- min(1, pi_1_U/gamma) - xi_L
+int_a_l <- max(0,int_a_l)
+
+
+
+#b_u
+int_b_u <- 0
+for(a in 0:1){
+  for(wtkg in 0:1){
+      int_b_u <- int_b_u + (Pr_Y_SACZR(1,1,a,wtkg,0,1,dat)*Pr_R_SACZ(1,1,a,wtkg,0,dat) + Pr_R_SACZ(0,1,a,wtkg,0,dat))*f_AC_LL(a,wtkg,dat)
+  }
+}
+
+int_b_l <- 0
+for(a in 0:1){
+  for(wtkg in 0:1){
+      int_b_l <- int_b_l + (Pr_Y_SACZR(1,1,a,wtkg,0,1,dat)*Pr_R_SACZ(1,1,a,wtkg,0,dat))*f_AC_LL(a,wtkg,dat)
+  }
+}
+print(paste("CE falls in interval: [",int_a_l - int_b_u,int_a_u - int_b_l,"]"))
+

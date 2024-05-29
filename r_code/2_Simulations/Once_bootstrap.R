@@ -30,12 +30,12 @@ dim_status <- c(2,1,1,1,1,1)
 # 2. Parameter Estimation ------------------------------------------------------
 ### pr(R = 1| S = 1 ,A, C, Y; alpha)
 ## initial values
-ini_val_alpha <- c(0.1, 0.3, 2, 0.8) - c(0.1, 0.3, 2, 0.8)
-ini_val_beta1 <- c(1, 0.9, 0.9) - c(1, 0.9, 0.9)
-ini_val_beta01 <- c(0.1,-0.3, 1.2) - c(0.1,-0.3, 1.2)
-ini_val_gamma_LL <- c(0.3, 0.9) - c(0.3, 0.9)
-ini_val_gamma_LD <- c(0.2, 0.9) - c(0.2, 0.9)
-ini_val_eta <- c(-0.1, 0.8) - c(-0.1, 0.8)
+ini_val_alpha <- c(0,0,0,0)
+ini_val_beta1 <- c(0,0,0)
+ini_val_beta01 <- c(0,0,0)
+ini_val_gamma_LL <- c(0,0)
+ini_val_gamma_LD <-  c(0,0)
+ini_val_eta <-  c(0,0)
 
 hat_alpha <-
   alphaPred(ini_val_alpha = ini_val_alpha,
@@ -115,8 +115,6 @@ print(E1LL)
 ## step 3: Causal effect
 CE_origin <- E1LL - E0LL
 print(CE_origin)
-## ????? Sometimes unsuccessful convergence????
-
 
 
 # step 4: bootstrap to estimate the variance ------------------------------

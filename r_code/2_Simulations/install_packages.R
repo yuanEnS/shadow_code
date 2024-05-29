@@ -1,7 +1,0 @@
-# install.packages("parallel",repos = "https://cloud.r-project.org")
-# install.packages("MASS",repos = "https://cloud.r-project.org")
-# install.packages("stats",repos = "https://cloud.r-project.org")
-# install.packages("dplyr",repos = "https://cloud.r-project.org")
-# install.packages("gmm",repos = "https://cloud.r-project.org")
-# install.packages("BB",repos = "https://cloud.r-project.org")
-install.packages("tbd",repos = "https://cloud.r-project.org")

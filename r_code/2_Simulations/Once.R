@@ -113,7 +113,7 @@ print(E1LL)
 ## step 3: Causal effect
 CE <- E1LL - E0LL
 print(CE)
-## ????? Sometimes unsuccessful convergence????
+
 
 
 
